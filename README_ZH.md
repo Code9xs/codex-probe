@@ -5,7 +5,7 @@
 
 **Codex 凭证管理与接口诊断命令行工具**
 
-[![Release](https://img.shields.io/github/v/release/yourname/codex-probe?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/github/v/release/Code9xs/codex-probe?style=flat-square)](../../releases)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square)]()
@@ -14,7 +14,7 @@
 
 </div>
 
-`codex-probe` 是一个单文件 CLI，用来集中管理 Codex token 的登录、续期、额度查询、接口测试，以及按需同步到 Supabase。
+`codex-probe` 是一个单文件 CLI，用来集中管理 Codex token 的登录、续期、额度查询、接口测试、凭证格式转换，以及按需同步到 Supabase。
 
 ## 项目简介
 
@@ -30,6 +30,8 @@
 - `--renew`：给单个 token 文件或整个目录批量续期
 - `--status`：查询现有 token 的额度窗口
 - `--apitest`：用最小请求探测模型接口能不能用
+- `--convert`：将凭证文件转换为 **sub2api** 或 **CPA** 格式
+- `--serve`：启动 **Web 可视化界面** 和 REST API 服务
 - `--sync`：把本地 token 加密后同步到 Supabase，也能从云端拉回本地
 - `--output`：把 `--status` 和 `--apitest` 结果导出成 CSV
 - `--proxy`：手动指定代理，或者直接走系统代理检测
@@ -54,9 +56,22 @@
 也可以从源码编译：
 
 ```bash
-git clone https://github.com/yourname/codex-probe
+git clone https://github.com/Code9xs/codex-probe
 cd codex-probe
 go build -o codex-probe ./cmd/codex-probe/
+```
+
+跨平台一键打包（编译所有平台）：
+
+```bash
+# 编译所有平台 → ./dist/
+./build.sh
+
+# 仅编译当前平台 → ./codex-probe
+./build.sh current
+
+# 编译指定平台
+./build.sh darwin-arm64
 ```
 
 macOS 首次运行如果被系统拦截，可先去掉隔离属性：
@@ -92,7 +107,103 @@ codex-probe --apitest ./tokens/
 
 # 与 Supabase 同步本地 token 文件
 codex-probe --sync
+
+# 启动 Web 可视化界面
+codex-probe --serve --port 8080 ./tokens/
 ```
+
+## 凭证格式转换
+
+`--convert` 命令可以在不同凭证格式之间转换：
+
+| 格式 | 说明 |
+|---|---|
+| `sub2api` | 标准 [sub2api](https://github.com/AIDotNet/sub2api) 导入 JSON，包含 `accounts[]`、`model_mapping`、`concurrency` 等字段 |
+| `cpa` | 行式 JSON 存档格式 — 每行一条完整的凭证 JSON |
+
+### 支持的输入类型
+
+| 输入 | 读取方式 |
+|---|---|
+| `./tokens/` | 目录 — 读取目录下所有 `*.json` 凭证文件 |
+| `./tokens/me.json` | 单个 codex-probe 凭证 JSON 文件 |
+| `./cpa.txt` | 行式文件 — 每行一条完整凭证 JSON（`.txt` 后缀） |
+
+### 使用示例
+
+```bash
+# 目录 → sub2api 格式 JSON
+codex-probe --convert --format sub2api ./tokens/
+
+# 单文件 → sub2api 格式 JSON
+codex-probe --convert --format sub2api ./tokens/me.json
+
+# CPA 行式文件 → sub2api 格式 JSON
+codex-probe --convert --format sub2api ./cpa.txt
+
+# 目录 → CPA 行式文件
+codex-probe --convert --format cpa ./tokens/
+
+# 自定义输出目录
+codex-probe --convert --format sub2api --output ./my_output/ ./tokens/
+
+# 交互模式 — 省略 --format 在运行时选择格式
+codex-probe --convert ./tokens/
+```
+
+### 完整工作流
+
+```
+codex-probe --login -o ./tokens/       ← 第1步：获取凭证
+                 ↓
+codex-probe --convert --format sub2api ./tokens/  ← 第2步：转换格式
+                 ↓
+           sub2api-5-20260512-215046.json          ← 可直接导入
+```
+
+## Web 可视化界面
+
+`--serve` 命令启动内置的 Web Dashboard 和 REST API 服务，提供图形化的凭证管理体验：
+
+```bash
+# 启动 Web 服务（默认端口 18152）
+codex-probe --serve ./tokens/
+
+# 自定义端口
+codex-probe --serve --port 8080 ./tokens/
+
+# 不预载凭证，启动空白 Dashboard
+codex-probe --serve
+```
+
+启动后打开浏览器访问 `http://localhost:18152` 即可使用。
+
+### Dashboard 功能
+
+- 📊 **统计面板** — 凭证总数 / 有效数 / 即将过期数
+- 📁 **拖放上传** — 支持 Codex `.json`、CPA `.txt`、Sub2API `.json`（自动识别格式，保存为 codex 格式）
+- 📋 **凭证列表** — 分页、筛选、全选/本页选、批量操作
+- ✅ **状态检测** — 一键检测所有凭证可用性（标记 401/403 失效账号）
+- 🔄 **格式转换** — 选中或全部转换为 sub2api / CPA 并下载
+- 📈 **额度查询** — 可视化展示 5 小时 / 周额度环形图
+- 🔐 **OAuth 登录** — 直接从网页登录新账号
+- 🗑️ **增删管理** — 逐条删除或一键清空
+
+### REST API
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/health` | 健康检查 |
+| `GET` | `/api/keys` | 获取凭证列表（含状态字段） |
+| `POST` | `/api/keys/upload` | 上传凭证文件 (codex/CPA/sub2api) |
+| `POST` | `/api/keys/batch-check` | 批量检测凭证可用性 |
+| `GET` | `/api/keys/{idx}` | 获取单条凭证详情 |
+| `DELETE` | `/api/keys/{idx}` | 删除单条凭证 |
+| `DELETE` | `/api/keys` | 清空所有凭证 |
+| `GET` | `/api/keys/{idx}/status` | 查询额度 |
+| `POST` | `/api/keys/{idx}/renew` | 刷新凭证 |
+| `POST` | `/api/convert` | 格式转换 (body: `{format, indices}`) |
+| `GET` | `/api/login` | OAuth 登录流程 |
 
 ## 本地配置
 
@@ -121,6 +232,20 @@ Supabase 用 Free Plan 就够用了。
 - [docs/advanced_ZH.md](docs/advanced_ZH.md)
 - [docs/supabase_ZH.md](docs/supabase_ZH.md)
 - [supabase.sql](supabase.sql)
+
+## 打包脚本
+
+`build.sh` 脚本支持跨平台一键打包：
+
+```bash
+./build.sh              # 编译所有平台 → ./dist/
+./build.sh current      # 仅编译当前平台
+./build.sh clean        # 清理编译产物
+./build.sh darwin-arm64 # 编译指定平台
+VERSION=v1.2.0 ./build.sh  # 指定版本号
+```
+
+编译产物输出到 `./dist/` 目录，附带 SHA-256 校验和。
 
 ## License
 

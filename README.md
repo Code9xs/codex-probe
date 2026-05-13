@@ -6,7 +6,7 @@
 
 **Codex Credential & Diagnostics CLI**
 
-[![Release](https://img.shields.io/github/v/release/yourname/codex-probe?style=flat-square)](../../releases)
+[![Release](https://img.shields.io/github/v/release/Code9xs/codex-probe?style=flat-square)](../../releases)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-lightgrey?style=flat-square)]()
@@ -15,7 +15,7 @@
 
 </div>
 
-`codex-probe` is a single-binary CLI for Codex token login, renewal, quota checks, API smoke tests, and optional Supabase sync.
+`codex-probe` is a single-binary CLI for Codex token login, renewal, quota checks, API smoke tests, credential format conversion, and optional Supabase sync.
 
 ## Project Overview
 
@@ -31,6 +31,8 @@ Features:
 - `--renew`: refresh one token file or a whole directory in place
 - `--status`: read remaining quota windows from existing token files
 - `--apitest`: send lightweight requests to verify model availability
+- `--convert`: convert credential files to **sub2api** or **CPA** format
+- `--serve`: start a **Web Dashboard** with REST API for visual credential management
 - `--sync`: encrypt local token files and sync them with Supabase
 - `--output`: export `--status` and `--apitest` results as CSV
 - `--proxy`: use a fixed proxy or fall back to system proxy detection
@@ -55,9 +57,22 @@ Pre-built binaries are available in [Releases](../../releases).
 Build from source:
 
 ```bash
-git clone https://github.com/yourname/codex-probe
+git clone https://github.com/Code9xs/codex-probe
 cd codex-probe
 go build -o codex-probe ./cmd/codex-probe/
+```
+
+Cross-platform build (all platforms at once):
+
+```bash
+# Build all platforms → ./dist/
+./build.sh
+
+# Build current platform only → ./codex-probe
+./build.sh current
+
+# Build specific platform
+./build.sh darwin-arm64
 ```
 
 On macOS, remove quarantine before first run if needed:
@@ -93,7 +108,96 @@ codex-probe --apitest ./tokens/
 
 # Encrypt and sync local token files with Supabase
 codex-probe --sync
+
+# Start web dashboard
+codex-probe --serve --port 8080 ./tokens/
 ```
+
+## Credential Conversion
+
+The `--convert` command lets you convert between different credential formats:
+
+| Format | Description |
+|---|---|
+| `sub2api` | Standard [sub2api](https://github.com/AIDotNet/sub2api) import JSON with `accounts[]`, `model_mapping`, `concurrency`, etc. |
+| `cpa` | JSONL archive — one complete credential JSON per line |
+
+### Input Types
+
+| Input | How it's read |
+|---|---|
+| `./tokens/` | Directory — reads all `*.json` credential files |
+| `./tokens/me.json` | Single codex-probe credential JSON file |
+| `./cpa.txt` | Line-delimited file — each line is a full credential JSON (`.txt` extension) |
+
+### Examples
+
+```bash
+# Directory → sub2api JSON
+codex-probe --convert --format sub2api ./tokens/
+
+# Single file → sub2api JSON
+codex-probe --convert --format sub2api ./tokens/me.json
+
+# CPA line file → sub2api JSON
+codex-probe --convert --format sub2api ./cpa.txt
+
+# Directory → CPA line file
+codex-probe --convert --format cpa ./tokens/
+
+# Custom output directory
+codex-probe --convert --format sub2api --output ./my_output/ ./tokens/
+
+# Interactive — omit --format to choose at runtime
+codex-probe --convert ./tokens/
+```
+
+### End-to-End Workflow
+
+```
+codex-probe --login -o ./tokens/       ← Step 1: obtain credentials
+                 ↓
+codex-probe --convert --format sub2api ./tokens/  ← Step 2: convert format
+                 ↓
+           sub2api-5-20260512-215046.json          ← Ready to import
+```
+
+## Web Dashboard
+
+The `--serve` command starts a built-in web dashboard with REST API:
+
+```bash
+codex-probe --serve ./tokens/             # default port 18152
+codex-probe --serve --port 8080 ./tokens/ # custom port
+codex-probe --serve                       # empty dashboard
+```
+
+Features:
+
+- **Stats overview** — total, valid, and expiring credential counts
+- **Drag-drop upload** — supports Codex `.json`, CPA `.txt`, and Sub2API `.json` (auto-detect, saved as codex format)
+- **Credential table** — pagination, filtering, select all / select page, batch operations
+- **Status detection** — batch check all credentials (marks invalid 401/403 accounts)
+- **Format conversion** — convert selected or all credentials to sub2api / CPA
+- **Quota checking** — visual 5-hour and weekly quota display per credential
+- **OAuth login** — login new accounts directly from the web UI
+- **Credential management** — delete, clear, renew individual credentials
+
+### REST API
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/keys` | List credentials (with status field) |
+| `POST` | `/api/keys/upload` | Upload credential files (codex/CPA/sub2api) |
+| `POST` | `/api/keys/batch-check` | Batch check all credentials status |
+| `GET` | `/api/keys/{idx}` | Get credential detail |
+| `DELETE` | `/api/keys/{idx}` | Delete credential |
+| `DELETE` | `/api/keys` | Clear all credentials |
+| `GET` | `/api/keys/{idx}/status` | Check quota |
+| `POST` | `/api/keys/{idx}/renew` | Refresh credential |
+| `POST` | `/api/convert` | Convert format (body: `{format, indices}`) |
+| `GET` | `/api/login` | Start OAuth login flow |
 
 ## Local Config
 
@@ -122,6 +226,20 @@ For Supabase setup, local config details, renew behavior, proxy detection, CSV f
 - [docs/advanced.md](docs/advanced.md)
 - [docs/supabase.md](docs/supabase.md)
 - [supabase.sql](supabase.sql)
+
+## Build Script
+
+The `build.sh` script cross-compiles for all supported platforms:
+
+```bash
+./build.sh              # Build all platforms → ./dist/
+./build.sh current      # Build for current platform only
+./build.sh clean        # Remove build artifacts
+./build.sh darwin-arm64 # Build for a specific platform
+VERSION=v1.2.0 ./build.sh  # Set version tag
+```
+
+Output artifacts go to `./dist/` with SHA-256 checksums.
 
 ## License
 

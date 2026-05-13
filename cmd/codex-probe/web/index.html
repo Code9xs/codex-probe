@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Codex Probe Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0e17;--card:rgba(15,23,42,.82);--card-border:rgba(51,65,85,.45);--accent:#3b82f6;--accent-glow:rgba(59,130,246,.25);--success:#10b981;--warn:#f59e0b;--error:#ef4444;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--radius:12px;--font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 0%,rgba(59,130,246,.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 100%,rgba(16,185,129,.06) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+.container{max-width:1200px;margin:0 auto;padding:24px;position:relative;z-index:1}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 32px;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo svg{width:36px;height:36px}
+.logo h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#60a5fa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo span{font-size:12px;color:var(--text3);font-family:var(--mono)}
+.status-badge{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;background:rgba(16,185,129,.12);color:var(--success);border:1px solid rgba(16,185,129,.2)}
+.status-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:24px;backdrop-filter:blur(12px);transition:border-color .2s}
+.card:hover{border-color:rgba(59,130,246,.3)}
+.card-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title svg{width:18px;height:18px;color:var(--accent)}
+
+/* Grid */
+.grid{display:grid;gap:20px;margin-bottom:20px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* Upload */
+.drop-zone{border:2px dashed var(--card-border);border-radius:var(--radius);padding:40px 24px;text-align:center;cursor:pointer;transition:all .25s}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:var(--accent-glow)}
+.drop-zone svg{width:40px;height:40px;color:var(--text3);margin-bottom:12px}
+.drop-zone p{color:var(--text2);font-size:14px}
+.drop-zone .hint{font-size:12px;color:var(--text3);margin-top:8px}
+#fileInput{display:none}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#2563eb;box-shadow:0 0 20px var(--accent-glow)}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-warn{background:var(--warn);color:#000}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--card-border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text3)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:rgba(239,68,68,.15);color:var(--error);border:1px solid rgba(239,68,68,.25)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-success{background:rgba(16,185,129,.15);color:var(--success);border:1px solid rgba(16,185,129,.25)}
+.btn-success:hover{background:rgba(16,185,129,.25)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Select */
+select{background:rgba(30,41,59,.8);color:var(--text);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;font-size:13px;font-family:var(--font);cursor:pointer;outline:none}
+select:focus{border-color:var(--accent)}
+
+/* Table */
+.table-wrap{overflow-x:auto;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;color:var(--text3);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--card-border)}
+td{padding:10px 12px;border-bottom:1px solid rgba(51,65,85,.25);vertical-align:middle}
+tr:hover td{background:rgba(59,130,246,.04)}
+.email{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.plan-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;text-transform:uppercase}
+.plan-plus{background:rgba(59,130,246,.15);color:#60a5fa}
+.plan-pro{background:rgba(168,85,247,.15);color:#c084fc}
+.plan-free{background:rgba(100,116,139,.15);color:var(--text3)}
+.expire-ok{color:var(--success)}
+.expire-warn{color:var(--warn)}
+.expire-bad{color:var(--error)}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+tr.row-selected{background:rgba(59,130,246,.08)}
+.status-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.status-ok{background:rgba(16,185,129,.15);color:var(--success)}
+.status-invalid{background:rgba(239,68,68,.15);color:var(--error)}
+.status-error{background:rgba(245,158,11,.15);color:var(--warn)}
+.status-unknown{background:rgba(100,116,139,.1);color:var(--text3)}
+
+/* Stats */
+.stat{text-align:center}
+.stat .num{font-size:28px;font-weight:700;background:linear-gradient(135deg,#60a5fa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat .label{font-size:12px;color:var(--text3);margin-top:4px}
+
+/* Convert toolbar */
+.convert-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;justify-content:center;align-items:center}
+.modal-overlay.active{display:flex}
+.modal{background:#0f172a;border:1px solid var(--card-border);border-radius:16px;padding:28px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,.5)}
+.modal h3{font-size:16px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.modal pre{background:rgba(0,0,0,.3);border-radius:8px;padding:14px;font-family:var(--mono);font-size:11px;line-height:1.6;overflow-x:auto;color:var(--text2);max-height:400px}
+.modal .close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer}
+
+/* Toast */
+.toast-container{position:fixed;top:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;animation:slideIn .3s;backdrop-filter:blur(8px);border:1px solid}
+.toast-success{background:rgba(16,185,129,.15);color:var(--success);border-color:rgba(16,185,129,.3)}
+.toast-error{background:rgba(239,68,68,.15);color:var(--error);border-color:rgba(239,68,68,.3)}
+.toast-info{background:rgba(59,130,246,.15);color:var(--accent);border-color:rgba(59,130,246,.3)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Progress bar */
+.progress{height:4px;background:rgba(51,65,85,.3);border-radius:2px;overflow:hidden;margin-top:8px}
+.progress-bar{height:100%;border-radius:2px;transition:width .4s;background:linear-gradient(90deg,var(--accent),var(--success))}
+
+/* Empty state */
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty svg{width:48px;height:48px;margin-bottom:12px;opacity:.4}
+.empty p{font-size:14px}
+
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row td{text-align:center;color:var(--text3);padding:20px}
+
+/* Quota Display */
+.quota-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+@media(max-width:500px){.quota-grid{grid-template-columns:1fr}}
+.quota-card{background:rgba(0,0,0,.25);border:1px solid var(--card-border);border-radius:12px;padding:20px;text-align:center}
+.quota-card h4{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:16px;text-transform:uppercase;letter-spacing:.5px}
+.ring-wrap{position:relative;width:120px;height:120px;margin:0 auto 16px}
+.ring-wrap svg{width:120px;height:120px;transform:rotate(-90deg)}
+.ring-wrap .ring-bg{fill:none;stroke:rgba(51,65,85,.35);stroke-width:8}
+.ring-wrap .ring-fg{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-center .pct{font-size:26px;font-weight:700;font-family:var(--mono)}
+.ring-center .pct-label{font-size:11px;color:var(--text3);margin-top:2px}
+.quota-meta{text-align:left;margin-top:12px;font-size:12px;line-height:2}
+.quota-meta .meta-row{display:flex;justify-content:space-between;align-items:center;padding:0 4px}
+.quota-meta .meta-label{color:var(--text3)}
+.quota-meta .meta-value{color:var(--text);font-family:var(--mono);font-weight:500}
+.quota-status{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:12px}
+.quota-status.ok{background:rgba(16,185,129,.12);color:var(--success)}
+.quota-status.limited{background:rgba(239,68,68,.12);color:var(--error)}
+.quota-status.warn{background:rgba(245,158,11,.12);color:var(--warn)}
+.quota-status::before{content:'';width:8px;height:8px;border-radius:50%}
+.quota-status.ok::before{background:var(--success)}
+.quota-status.limited::before{background:var(--error)}
+.quota-status.warn::before{background:var(--warn)}
+.quota-no-data{color:var(--text3);padding:30px 10px;text-align:center;font-size:13px}
+.quota-error{color:var(--error);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px;font-size:12px;margin-top:12px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="8" fill="url(#g)"/><path d="M10 18a8 8 0 1116 0 8 8 0 01-16 0z" stroke="#fff" stroke-width="2"/><path d="M18 10v4m0 8v4m-8-8h4m8 0h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="g" x1="0" y1="0" x2="36" y2="36"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs></svg>
+      <div><h1>Codex Probe</h1><span>Dashboard</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-success" onclick="startLogin()" id="btnLogin">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        登录新账号
+      </button>
+      <div class="status-badge">API Running</div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="grid grid-3" style="margin-bottom:24px">
+    <div class="card stat"><div class="num" id="statTotal">0</div><div class="label">凭证总数</div></div>
+    <div class="card stat"><div class="num" id="statValid">0</div><div class="label">有效凭证</div></div>
+    <div class="card stat"><div class="num" id="statExpiring">0</div><div class="label">即将过期</div></div>
+  </div>
+
+  <!-- Upload + Convert -->
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>上传凭证</div>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L8 8m4-4l4 4"/><path d="M20 16.7V19a2 2 0 01-2 2H6a2 2 0 01-2-2v-2.3"/></svg>
+        <p>拖放文件到此处，或点击选择</p>
+        <div class="hint">支持: Codex (.json) / CPA (.txt 行式) / Sub2API (.json)，自动识别格式</div>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".json,.txt">
+    </div>
+    <div class="card">
+      <div class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>格式转换</div>
+      <div class="convert-bar">
+        <select id="convertFmt"><option value="sub2api">sub2api 格式</option><option value="cpa">CPA 行式格式</option></select>
+        <button class="btn btn-primary" onclick="doConvert()" id="btnConvert" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          转换并下载
+        </button>
+        <button class="btn btn-ghost" onclick="doConvertAll()" id="btnConvertAll" disabled>全部转换</button>
+      </div>
+      <div style="margin-top:16px;font-size:12px;color:var(--text3)">
+        <p>• <b>sub2api</b>: 标准导入 JSON，含 model_mapping / concurrency</p>
+        <p style="margin-top:4px">• <b>CPA</b>: 每行一条完整凭证 JSON（行式存档）</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credentials Table -->
+  <div class="card" style="margin-top:20px">
+    <div class="card-title" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        凭证列表
+      </span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="refreshKeys()">刷新</button>
+        <button class="btn btn-success btn-sm" onclick="batchCheck()" id="btnBatchCheck" disabled>✔ 检测状态</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAll()" id="btnClear" disabled>清空</button>
+      </div>
+    </div>
+    <!-- Filter + Selection Toolbar -->
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0 8px;border-bottom:1px solid var(--card-border)">
+      <input type="text" id="filterInput" placeholder="🔍 搜索邮箱 / Account ID / Plan ..." oninput="onFilterChange()" style="flex:1;min-width:200px;padding:7px 12px;border-radius:8px;border:1px solid var(--card-border);background:rgba(0,0,0,.15);color:var(--text);font-size:13px;outline:none">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <button class="btn btn-ghost btn-sm" onclick="selectCurrentPage()" id="btnSelPage">选择本页</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectAll()">全选</button>
+        <button class="btn btn-ghost btn-sm" onclick="deselectAll()" style="color:var(--text3)">取消</button>
+        <span id="selCount" style="color:var(--accent);font-weight:600;min-width:80px"></span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:40px"><input type="checkbox" id="checkAllPage" onchange="togglePageCheck(this.checked)"></th><th>邮箱</th><th>状态</th><th>Plan</th><th>过期时间</th><th>Account ID</th><th>操作</th></tr></thead>
+        <tbody id="keyTable"><tr class="empty-row"><td colspan="7"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg><p>暂无凭证，请上传文件</p></div></td></tr></tbody>
+      </table>
+    </div>
+    <!-- Pagination -->
+    <div id="pagination" style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;font-size:13px;color:var(--text3)">
+      <div id="pageInfo"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label>每页</label>
+        <select id="pageSizeSelect" onchange="changePageSize()" style="padding:3px 8px;border-radius:6px;border:1px solid var(--card-border);background:var(--card-bg);color:var(--text);font-size:12px">
+          <option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="goPage(-1)" id="btnPrev" disabled>‹ 上一页</button>
+        <span id="pageNum" style="font-weight:600;color:var(--text)"></span>
+        <button class="btn btn-ghost btn-sm" onclick="goPage(1)" id="btnNext" disabled>下一页 ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal"><h3 id="modalTitle">详情</h3><div id="modalContent"><pre id="modalBody"></pre></div><div style="margin-top:16px;text-align:right"><button class="btn btn-ghost" onclick="closeModal()">关闭</button></div></div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+let keys = [];
+let filteredKeys = []; 
+let selectedSet = new Set(); 
+let currentPage = 1;
+let pageSize = 20;
+let filterText = '';
+const API = location.origin;
+
+function toast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const d = document.createElement('div');
+  d.className = 'toast toast-' + type;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; setTimeout(()=>d.remove(),300); }, 3500);
+}
+
+// ── API calls ──
+async function api(path, opts={}) {
+  const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(t || `HTTP ${res.status}`);
+  }
+  return res;
+}
+
+async function refreshKeys() {
+  try {
+    const res = await api('/api/keys');
+    keys = await res.json();
+    selectedSet.clear();
+    applyFilter();
+  } catch(e) { toast('加载失败: '+e.message, 'error'); }
+}
+
+function applyFilter() {
+  const q = filterText.toLowerCase();
+  filteredKeys = keys.map((k, i) => i).filter(i => {
+    if (!q) return true;
+    const k = keys[i];
+    const statusText = k.status === 'ok' ? '可用 ok' : k.status === 'invalid' ? '失效 invalid' : k.status === 'error' ? '异常 error' : '未检测';
+    return (k.email||'').toLowerCase().includes(q)
+      || (k.account_id||'').toLowerCase().includes(q)
+      || (k.plan_type||'plus').toLowerCase().includes(q)
+      || statusText.toLowerCase().includes(q);
+  });
+  // reset to page 1 if filter changed
+  const maxPage = Math.max(1, Math.ceil(filteredKeys.length / pageSize));
+  if (currentPage > maxPage) currentPage = 1;
+  renderTable();
+  updateStats();
+}
+
+function onFilterChange() {
+  filterText = document.getElementById('filterInput').value.trim();
+  currentPage = 1;
+  applyFilter();
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = keys.length;
+  const now = Date.now();
+  let valid=0, expiring=0;
+  keys.forEach(k => {
+    const exp = new Date(k.expired).getTime();
+    if (exp > now) { valid++; if (exp - now < 3*86400000) expiring++; }
+  });
+  document.getElementById('statValid').textContent = valid;
+  document.getElementById('statExpiring').textContent = expiring;
+  document.getElementById('btnConvert').disabled = keys.length === 0;
+  document.getElementById('btnConvertAll').disabled = keys.length === 0;
+  document.getElementById('btnClear').disabled = keys.length === 0;
+  document.getElementById('btnBatchCheck').disabled = keys.length === 0;
+  updateSelectionUI();
+}
+
+function getPageSlice() {
+  const start = (currentPage - 1) * pageSize;
+  return filteredKeys.slice(start, start + pageSize);
+}
+
+function renderTable() {
+  const tb = document.getElementById('keyTable');
+  const totalFiltered = filteredKeys.length;
+  if (keys.length === 0) {
+    tb.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg><p>暂无凭证，请上传文件</p></div></td></tr>';
+    updatePagination(0);
+    return;
+  }
+  if (totalFiltered === 0) {
+    tb.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="empty"><p>没有匹配的凭证</p></div></td></tr>';
+    updatePagination(0);
+    return;
+  }
+  const pageItems = getPageSlice();
+  const now = Date.now();
+  tb.innerHTML = pageItems.map(origIdx => {
+    const k = keys[origIdx];
+    const exp = new Date(k.expired);
+    const diff = exp.getTime() - now;
+    const days = Math.floor(diff / 86400000);
+    let expClass = 'expire-ok', expText = days + ' 天';
+    if (days < 0) { expClass='expire-bad'; expText='已过期'; }
+    else if (days < 3) { expClass='expire-warn'; expText=days+'天 ⚠'; }
+    const plan = (k.plan_type||'plus').toLowerCase();
+    const planClass = plan==='pro'?'plan-pro':plan==='free'?'plan-free':'plan-plus';
+    const chk = selectedSet.has(origIdx) ? 'checked' : '';
+    const st = k.status || '';
+    const statusHtml = st === 'ok' ? '<span class="status-tag status-ok">✔ 可用</span>'
+      : st === 'invalid' ? '<span class="status-tag status-invalid">✘ 失效</span>'
+      : st === 'error' ? '<span class="status-tag status-error">⚠ 异常</span>'
+      : '<span class="status-tag status-unknown">— 未检测</span>';
+    return `<tr class="${selectedSet.has(origIdx)?'row-selected':''}">
+      <td><input type="checkbox" class="key-check" data-idx="${origIdx}" ${chk} onchange="toggleSelect(${origIdx}, this.checked)"></td>
+      <td class="email">${k.email||'-'}</td>
+      <td>${statusHtml}</td>
+      <td><span class="plan-badge ${planClass}">${plan}</span></td>
+      <td class="${expClass}" title="${exp.toLocaleString()}">${expText}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${(k.account_id||'').substring(0,12)}…</td>
+      <td class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="viewDetail(${origIdx})">详情</button>
+        <button class="btn btn-ghost btn-sm" onclick="checkStatus(${origIdx})">额度</button>
+        <button class="btn btn-danger btn-sm" onclick="removeKey(${origIdx})">删除</button>
+      </td></tr>`;
+  }).join('');
+  updatePagination(totalFiltered);
+  // sync header checkbox
+  const allPageChecked = pageItems.length > 0 && pageItems.every(i => selectedSet.has(i));
+  document.getElementById('checkAllPage').checked = allPageChecked;
+}
+
+function updatePagination(total) {
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  document.getElementById('pageInfo').textContent = total > 0 ? `共 ${total} 条${filterText ? ' (已筛选)' : ''}` : '';
+  document.getElementById('pageNum').textContent = total > 0 ? `${currentPage} / ${maxPage}` : '';
+  document.getElementById('btnPrev').disabled = currentPage <= 1;
+  document.getElementById('btnNext').disabled = currentPage >= maxPage;
+}
+function goPage(delta) {
+  const maxPage = Math.max(1, Math.ceil(filteredKeys.length / pageSize));
+  currentPage = Math.max(1, Math.min(maxPage, currentPage + delta));
+  renderTable();
+}
+function changePageSize() {
+  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+  currentPage = 1;
+  renderTable();
+}
+
+// ── Selection ──
+function toggleSelect(idx, checked) {
+  if (checked) selectedSet.add(idx); else selectedSet.delete(idx);
+  updateSelectionUI();
+  // sync header checkbox
+  const pageItems = getPageSlice();
+  document.getElementById('checkAllPage').checked = pageItems.length > 0 && pageItems.every(i => selectedSet.has(i));
+  // highlight row
+  document.querySelectorAll('.key-check').forEach(cb => {
+    cb.closest('tr').classList.toggle('row-selected', cb.checked);
+  });
+}
+function togglePageCheck(checked) {
+  getPageSlice().forEach(i => { if (checked) selectedSet.add(i); else selectedSet.delete(i); });
+  renderTable();
+}
+function selectCurrentPage() {
+  getPageSlice().forEach(i => selectedSet.add(i));
+  renderTable();
+}
+function selectAll() {
+  filteredKeys.forEach(i => selectedSet.add(i));
+  renderTable();
+}
+function deselectAll() {
+  selectedSet.clear();
+  renderTable();
+}
+function updateSelectionUI() {
+  const n = selectedSet.size;
+  document.getElementById('selCount').textContent = n > 0 ? `已选 ${n} 个` : '';
+}
+
+// ── Batch Status Check ──
+async function batchCheck() {
+  const btn = document.getElementById('btnBatchCheck');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 检测中...';
+  toast(`正在检测 ${keys.length} 个凭证状态...`, 'info');
+  try {
+    const res = await api('/api/keys/batch-check', { method:'POST' });
+    const data = await res.json();
+    toast(`检测完成: ${data.ok} 可用, ${data.invalid} 失效, ${data.error||0} 异常`, data.invalid > 0 ? 'error' : 'success');
+    await refreshKeys();
+  } catch(e) { toast('检测失败: '+e.message, 'error'); }
+  btn.disabled = false;
+  btn.innerHTML = '✔ 检测状态';
+}
+
+// ── Upload ──
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); uploadFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => uploadFiles(e.target.files));
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  try {
+    const res = await api('/api/keys/upload', { method:'POST', body:fd });
+    const data = await res.json();
+    toast(`上传成功: ${data.added} 条凭证`, 'success');
+    await refreshKeys();
+  } catch(e) { toast('上传失败: '+e.message, 'error'); }
+  fileInput.value = '';
+}
+
+// ── Convert ──
+async function doConvert() {
+  const indices = selectedSet.size > 0 ? [...selectedSet] : keys.map((_,i)=>i);
+  await convertAndDownload(indices);
+}
+async function doConvertAll() { await convertAndDownload(keys.map((_,i)=>i)); }
+
+async function convertAndDownload(indices) {
+  const fmt = document.getElementById('convertFmt').value;
+  try {
+    const res = await api('/api/convert', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ format: fmt, indices })
+    });
+    const blob = await res.blob();
+    const ext = fmt==='sub2api'?'.json':'.txt';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fmt}-${indices.length}-${new Date().toISOString().slice(0,10)}${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`${fmt} 文件已下载 (${indices.length} 条)`, 'success');
+  } catch(e) { toast('转换失败: '+e.message, 'error'); }
+}
+
+// ── Actions ──
+function viewDetail(idx) {
+  const k = keys[idx];
+  document.getElementById('modalTitle').textContent = k.email || 'Detail';
+  const mc = document.getElementById('modalContent');
+  mc.innerHTML = '<pre id="modalBody"></pre>';
+  document.getElementById('modalBody').textContent = JSON.stringify(k, null, 2);
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+
+function ringColor(pct) {
+  if (pct >= 90) return 'var(--error)';
+  if (pct >= 70) return 'var(--warn)';
+  return 'var(--success)';
+}
+function fmtDuration(secs) {
+  if (!secs || secs <= 0) return '-';
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm';
+  return Math.floor(secs) + 's';
+}
+function fmtTimestamp(ts) {
+  if (!ts || ts <= 0) return '-';
+  return new Date(ts * 1000).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function fmtWindow(secs) {
+  if (!secs || secs <= 0) return '-';
+  const h = Math.round(secs/3600);
+  if (h >= 24) return Math.round(h/24) + ' 天';
+  return h + ' 小时';
+}
+
+function renderRing(pct) {
+  const r = 50, c = 2 * Math.PI * r;
+  const used = Math.min(Math.max(pct,0),100);
+  const offset = c - (used / 100) * c;
+  const color = ringColor(used);
+  const remain = (100 - used).toFixed(1);
+  return `<div class="ring-wrap">
+    <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="${r}" class="ring-bg"/><circle cx="60" cy="60" r="${r}" class="ring-fg" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${offset}"/></svg>
+    <div class="ring-center"><span class="pct" style="color:${color}">${remain}%</span><span class="pct-label">剩余</span></div>
+  </div>`;
+}
+
+function renderQuotaCard(title, w) {
+  if (!w) return `<div class="quota-card"><h4>${title}</h4><div class="quota-no-data">暂无数据</div></div>`;
+  const pct = w.UsedPercent || 0;
+  return `<div class="quota-card">
+    <h4>${title}</h4>
+    ${renderRing(pct)}
+    <div class="quota-meta">
+      <div class="meta-row"><span class="meta-label">已用</span><span class="meta-value" style="color:${ringColor(pct)}">${pct.toFixed(1)}%</span></div>
+      <div class="meta-row"><span class="meta-label">刷新时间</span><span class="meta-value">${fmtTimestamp(w.ResetAt)}</span></div>
+      <div class="meta-row"><span class="meta-label">刷新倒计时</span><span class="meta-value">${fmtDuration(w.ResetAfterSeconds)}</span></div>
+      <div class="meta-row"><span class="meta-label">窗口周期</span><span class="meta-value">${fmtWindow(w.LimitWindowSeconds)}</span></div>
+    </div>
+  </div>`;
+}
+
+async function checkStatus(idx) {
+  const k = keys[idx];
+  toast('正在查询额度...', 'info');
+  try {
+    const res = await api(`/api/keys/${idx}/status`);
+    const data = await res.json();
+    document.getElementById('modalTitle').innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> 额度查询 — ${k.email||''}`;
+    const mc = document.getElementById('modalContent');
+    // status badge
+    let statusClass = 'ok', statusText = '可用';
+    if (data.error) { statusClass='limited'; statusText='查询异常'; }
+    else if (data.limit_reached || !data.allowed) { statusClass='limited'; statusText='已达限额'; }
+    else {
+      const fh = data.five_hour, wk = data.weekly;
+      if ((fh && fh.UsedPercent >= 90) || (wk && wk.UsedPercent >= 90)) { statusClass='warn'; statusText='即将限额'; }
+    }
+    let html = `<div style="text-align:center;margin-bottom:8px"><span class="quota-status ${statusClass}">${statusText}</span></div>`;
+    if (data.plan_type) html += `<div style="text-align:center;margin-bottom:16px;font-size:12px;color:var(--text3)">Plan: <b style="color:var(--text)">${data.plan_type}</b> · HTTP ${data.upstream_status}</div>`;
+    html += '<div class="quota-grid">';
+    html += renderQuotaCard('⚡ 5 小时窗口', data.five_hour);
+    html += renderQuotaCard('📅 周额度窗口', data.weekly);
+    html += '</div>';
+    if (data.error) html += `<div class="quota-error">⚠ ${data.error}</div>`;
+    mc.innerHTML = html;
+    document.getElementById('modalOverlay').classList.add('active');
+  } catch(e) { toast('查询失败: '+e.message, 'error'); }
+}
+
+async function removeKey(idx) {
+  try {
+    await api(`/api/keys/${idx}`, { method:'DELETE' });
+    toast('已删除', 'success');
+    await refreshKeys();
+  } catch(e) { toast('删除失败: '+e.message, 'error'); }
+}
+
+async function clearAll() {
+  if (!confirm('确定清空所有凭证？')) return;
+  try {
+    await api('/api/keys', { method:'DELETE' });
+    toast('已清空', 'success');
+    await refreshKeys();
+  } catch(e) { toast('清空失败: '+e.message, 'error'); }
+}
+
+// ── Login ──
+function startLogin() {
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 跳转中...';
+  toast('正在跳转到 OpenAI 授权页面...', 'info');
+  // redirect current window to /api/login, which will redirect to OpenAI
+  window.location.href = API + '/api/login';
+}
+
+// ── Init ──
+(function init() {
+  // handle login redirect result
+  const params = new URLSearchParams(window.location.search);
+  const loginStatus = params.get('login');
+  if (loginStatus === 'success') {
+    const email = params.get('email') || '';
+    toast(`登录成功！${email}`, 'success');
+    // clean up URL
+    window.history.replaceState({}, '', '/');
+  } else if (loginStatus === 'error') {
+    const msg = params.get('msg') || '未知错误';
+    toast(`登录失败: ${msg}`, 'error');
+    window.history.replaceState({}, '', '/');
+  }
+  refreshKeys();
+})();
+</script>
+</body>
+</html>

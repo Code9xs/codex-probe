@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -38,7 +39,12 @@ Options:
   --sync           Synchronize local token files with the configured remote store
   --status         Query remaining quota (5h window + weekly window)
   --apitest        Test availability of every model endpoint
+  --convert        Convert credentials to sub2api or CPA format
+  --format <fmt>   Output format for --convert: sub2api (default) or cpa
+  --serve          Start web dashboard and API server
+  --port   <num>   Port for --serve (default: 18152)
   --output <path>  Write --status / --apitest results to a CSV file (must end in .csv)
+                   For --convert, specifies the output directory
   --proxy  <url>   Proxy URL (e.g. http://127.0.0.1:7890 or socks5://...)
                    Pass "" to force direct connection (skip auto-detection)
                    Omit flag to auto-detect system proxy (env / registry / scutil)
@@ -51,6 +57,10 @@ Examples:
   codex-probe --renew ./keys/my.json
   codex-probe --status ./keys/my.json
   codex-probe --apitest --output apitest.csv ./keys/
+  codex-probe --convert --format sub2api ./keys/
+  codex-probe --convert --format cpa ./keys/me.json
+  codex-probe --convert ./cpa.txt
+  codex-probe --serve --port 8080 ./keys/
   codex-probe --proxy http://127.0.0.1:7890 --status ./keys/my.json
   codex-probe --proxy "" --status ./keys/my.json
 `
@@ -61,10 +71,14 @@ type config struct {
 	doSync       bool
 	doStatus     bool
 	doAPITest    bool
+	doConvert    bool
+	doServe      bool
 	forceRenew   bool
 	loginOutPath string
 	output       string
 	configPath   string
+	convertFmt   string
+	servePort    int
 	// proxySet=false           → auto-detect system proxy
 	// proxySet=true, proxy=""  → force direct (no proxy)
 	// proxySet=true, proxy!="" → use this URL
@@ -134,6 +148,18 @@ func main() {
 			fatalf("sync failed: %v", err)
 		}
 		printSyncSummary(result)
+		return
+	}
+	if cfg.doConvert {
+		runConvert(cfg.pathArg, cfg.convertFmt, cfg.output)
+		return
+	}
+	if cfg.doServe {
+		port := cfg.servePort
+		if port <= 0 {
+			port = 18152
+		}
+		runServe(client, probeCfg, port, cfg.pathArg)
 		return
 	}
 
@@ -318,6 +344,26 @@ func parseArgs(args []string) config {
 			cfg.doStatus = true
 		case "--apitest", "--test":
 			cfg.doAPITest = true
+		case "--convert":
+			cfg.doConvert = true
+		case "--format":
+			i++
+			if i >= len(args) {
+				fatalf("--format requires an argument (sub2api or cpa)")
+			}
+			cfg.convertFmt = args[i]
+		case "--serve":
+			cfg.doServe = true
+		case "--port":
+			i++
+			if i >= len(args) {
+				fatalf("--port requires a number")
+			}
+			p, err := strconv.Atoi(args[i])
+			if err != nil {
+				fatalf("--port: invalid number %q", args[i])
+			}
+			cfg.servePort = p
 		case "-o":
 			i++
 			if i >= len(args) {
@@ -352,19 +398,26 @@ func parseArgs(args []string) config {
 }
 
 func hasCommand(cfg config) bool {
-	return cfg.doLogin || cfg.doRenew || cfg.doSync || cfg.doStatus || cfg.doAPITest
+	return cfg.doLogin || cfg.doRenew || cfg.doSync || cfg.doStatus || cfg.doAPITest || cfg.doConvert || cfg.doServe
 }
 
 func validateCommandSelection(cfg config) error {
-	if cfg.doSync && (cfg.doLogin || cfg.doRenew || cfg.doStatus || cfg.doAPITest) {
+	if cfg.doSync && (cfg.doLogin || cfg.doRenew || cfg.doStatus || cfg.doAPITest || cfg.doConvert || cfg.doServe) {
 		return fmt.Errorf("--sync cannot be combined with other commands; run it as a standalone sync command")
+	}
+	if cfg.doConvert && (cfg.doLogin || cfg.doRenew || cfg.doStatus || cfg.doAPITest || cfg.doSync || cfg.doServe) {
+		return fmt.Errorf("--convert cannot be combined with other commands; run it as a standalone convert command")
+	}
+	if cfg.doServe && (cfg.doLogin || cfg.doRenew || cfg.doStatus || cfg.doAPITest || cfg.doSync || cfg.doConvert) {
+		return fmt.Errorf("--serve cannot be combined with other commands; run it as a standalone serve command")
 	}
 	return nil
 }
 
 func requiresPathArg(cfg config) bool {
-	return !cfg.doLogin && !cfg.doSync
+	return !cfg.doLogin && !cfg.doSync && !cfg.doServe
 }
+
 
 // resolveProxy determines the effective proxy URL.
 func resolveProxy(proxySet bool, proxyURL string) string {
